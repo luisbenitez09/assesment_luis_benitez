@@ -7,15 +7,15 @@ import numpy as np
 
 # Defining the bidimensional space
 rewards = np.array([
-    [0, 0, 0, 0,],
-    [0, 0, 0, 0,],
-    [0, 0, -0.04, 0,],
-    [0, 0, 1, -0.1,],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+    [0, 0, -0.04, 0],
+    [0, 0, 1, -0.1],
 ])
 
 # Defining the possible actions
 
-actions = ['up', 'down', 'right', 'left', 'nop']
+actions = ['up', 'down', 'right', 'left', 'up-left', 'up-right', 'down-left', 'down-right', 'nop']
 actions_indices = {action: i for i, action in enumerate(actions)}
 
 # Defining the initial parameters
@@ -23,7 +23,7 @@ actions_indices = {action: i for i, action in enumerate(actions)}
 alpha = 0.1 # leargnig rate
 gamma = 0.9 # discount factor
 epsilon = 0.1 # exploration factor
-n_episodes = 800
+n_episodes = 1100
 
 # We define the Q-values matrix
 
@@ -40,6 +40,14 @@ def get_next_state(future_state, action_taken):
         return (x, y - 1)
     elif action_taken == 'right' and y < 3:
         return (x, y + 1)
+    if action_taken == 'up-left' and x > 0 and y > 0:
+        return (x - 1, y - 1)
+    elif action_taken == 'up-right' and x > 0 and y < 3:
+        return (x - 1, y + 1)
+    elif action_taken == 'down-left' and x < 3 and y > 0:
+        return (x + 1, y - 1)
+    elif action_taken == 'down-right' and x < 3 and y < 3:
+        return (x + 1, y + 1)
     else:
         return future_state  # nop movement
 
@@ -49,22 +57,34 @@ def choose_action(actual_state):
     if random.uniform(0, 1) < epsilon:  # Explore
         return random.choice(actions)
     else:
-        return actions[np.argmax(Q[actual_state[0], actual_state[1]])] # Exploit
+        return actions[np.argmax(Q[actual_state[0], actual_state[1], :])] # Exploit
 
 # Q-Learning algorithm
 for episode in range(n_episodes):
     # We set a random initial state within the grid
     state = (random.randint(0, 3), random.randint(0, 3))
+    # Avoid the goal state
+    while state == (3, 2):  
+        state = (random.randint(0, 3), random.randint(0, 3))
+
     while True:
         action = choose_action(state) # Choose an action using epsilon-greedy
         next_state = get_next_state(state, action) # Get the next state
         reward = rewards[next_state[0], next_state[1]] # Get the possible new reward
-        best_next_action = np.argmax(Q[next_state[0], next_state[1]]) # Get the best action for the next state
-        # Update the Q-value for the state-action pair
-        Q[state[0], state[1], actions_indices[action]] += alpha * (reward + gamma * Q[next_state[0], next_state[1], best_next_action] - Q[state[0], state[1], actions_indices[action]])
-        state = next_state # Update the state
-        if state == (3, 2):  # Goal state
+
+        if next_state == (3,2):  # If we reach the goal
+            Q[state[0], state[1], actions_indices[action]] += alpha * (
+                reward - Q[state[0], state[1], actions_indices[action]]
+            )
+            Q[3, 2, :] = 0  # Reset Q-values for (3,2)
+            Q[3, 2, actions_indices["nop"]] = 10  # Assign highest value to NOP
             break
+        else:
+            best_next_action = np.argmax(Q[next_state[0], next_state[1], :])
+            Q[state[0], state[1], actions_indices[action]] += alpha * (
+                reward + gamma * Q[next_state[0], next_state[1], best_next_action] - Q[state[0], state[1], actions_indices[action]]
+            )
+        state = next_state  # Move to the new state
 
 # Print the learned Q-values
 print("Learned Q-values:")
